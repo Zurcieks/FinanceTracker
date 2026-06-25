@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:18
+    container_name: finance_tracker_ai_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: finance_tracker_ai
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d finance_tracker_ai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: finance_tracker_ai_pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "8080:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+  minio:
+    image: minio/minio
+    container_name: finance_tracker_ai_s3
+    ports:
+      - "9000:9000"
+      - "9001:9001" # web ui
+    environment:
+      MINIO_ROOT_USER: admin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+  minio_data:
