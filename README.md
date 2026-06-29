@@ -39,9 +39,8 @@ guards nothing.
 ## Running it locally
 
 ```bash
-docker compose up -d                                  # PostgreSQL + MinIO
+docker compose up -d                                  # PostgreSQL, PgAdmin + MinIO
 dotnet user-secrets set "OpenAI:ApiKey" "your-key"    # receipt scanning
-dotnet ef database update                             # apply migrations + seed
 dotnet run --project api
 ```
 
