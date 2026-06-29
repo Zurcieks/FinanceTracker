@@ -6,6 +6,7 @@ using Api.Features.Categories.Create;
 using Api.Features.Categories.Get;
 using Api.Features.Categories.Restore;
 using Api.Features.Categories.Update;
+using Api.Features.Dashboard;
 using Api.Features.ExchangeRates;
 using Api.Features.Receipts.ScanReceipt;
 using Api.Features.Receipts.UploadReceipt;
@@ -15,6 +16,7 @@ using Api.Features.Transactions.Get;
 using Api.Features.Transactions.GetById;
 using Api.Features.Transactions.Update;
 using Api.Infrastructure;
+using Api.Infrastructure.Seeding;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
@@ -79,6 +81,11 @@ if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.MapScalarApiReference();
+
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await db.Database.MigrateAsync();
+    await TransactionSeeder.SeedAsync(db);
 }
 
 app.UseHttpsRedirection();
@@ -101,6 +108,9 @@ app.MapGetEuroRateEndpoint();
 // Receipts
 app.MapUploadReceiptEndpoint();
 app.MapScanReceiptEndpoint();
+
+// Dashboard
+app.MapGetBalanceSummary();
 
 
 
