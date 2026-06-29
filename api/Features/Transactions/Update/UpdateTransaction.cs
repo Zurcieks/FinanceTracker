@@ -12,7 +12,9 @@ public record UpdateTransactionRequest(
     TransactionCurrency Currency,
     TransactionType Type,
     DateOnly? Date,
-    Guid CategoryId);
+    Guid CategoryId,
+    string? ReceiptKey,
+    bool RemoveReceipt = false);
 
 public record UpdateTransactionResponse(
     Guid Id,
@@ -22,12 +24,13 @@ public record UpdateTransactionResponse(
     decimal AmountInPLN,
     TransactionCurrency Currency,
     TransactionType Type,
+    string? ReceiptKey,
     DateOnly Date,
     DateTime CreatedAt,
     Guid CategoryId)
 {
     public static UpdateTransactionResponse FromEntity(Transaction t) =>
-        new(t.Id, t.MerchantName, t.Description, t.Amount, t.AmountInPLN, t.Currency, t.Type, t.Date, t.CreatedAt, t.CategoryId);
+        new(t.Id, t.MerchantName, t.Description, t.Amount, t.AmountInPLN, t.Currency, t.Type, t.ReceiptKey, t.Date, t.CreatedAt, t.CategoryId);
 };
 
 
@@ -44,7 +47,7 @@ public static class UpdateTransaction
         return app;
     }
 
-    private static async Task<IResult> Handle(Guid id, UpdateTransactionRequest request, AppDbContext context, CurrencyConverter converter, CancellationToken ct)
+    private static async Task<IResult> Handle(Guid id, UpdateTransactionRequest request, AppDbContext context, CurrencyConverter converter, ReceiptStorage storage, CancellationToken ct)
     {
         var transaction = await context.Transactions.FindAsync([id], ct);
         if (transaction is null)
@@ -61,6 +64,20 @@ public static class UpdateTransaction
 
         if (amountInPLN is null)
             return Results.Problem("Failed to fetch euro rate from NBP", statusCode: 502);
+
+        if (request.ReceiptKey is not null && request.ReceiptKey != transaction.ReceiptKey)
+        {
+            var oldKey = transaction.ReceiptKey;
+            transaction.ReceiptKey = request.ReceiptKey;
+            if (oldKey is not null)
+                await storage.DeleteAsync(oldKey, ct);
+        }
+        else if (request.RemoveReceipt && transaction.ReceiptKey is not null)
+        {
+            var oldKey = transaction.ReceiptKey;
+            transaction.ReceiptKey = null;
+            await storage.DeleteAsync(oldKey, ct);
+        }
 
         var warsaw = TimeZoneInfo.FindSystemTimeZoneById("Europe/Warsaw");
         var today = DateOnly.FromDateTime(
