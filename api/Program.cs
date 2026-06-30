@@ -17,6 +17,7 @@ using Api.Features.Transactions.GetById;
 using Api.Features.Transactions.Update;
 using Api.Infrastructure;
 using Api.Infrastructure.Seeding;
+using APi.Features.Dashboard;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;
@@ -111,7 +112,8 @@ app.MapScanReceiptEndpoint();
 
 // Dashboard
 app.MapGetBalanceSummary();
-
+app.MapGetCategorySpending();
+app.MapGetMonthlySpending();
 
 
 
