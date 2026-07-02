@@ -26,34 +26,32 @@ public static class GetCategorySpending
     private static async Task<IResult> Handle(
         AppDbContext context,
         CancellationToken ct,
-        [FromQuery] DateOnly? from,
-        [FromQuery] DateOnly? to)
+        [FromQuery] string? from,
+        [FromQuery] string? to)
     {
-        var spending = await context.Transactions
+        if (!DateParsing.TryParseOptional(from, out var fromDate))
+            return Results.BadRequest("Invalid 'from' date format");
+        if (!DateParsing.TryParseOptional(to, out var toDate))
+            return Results.BadRequest("Invalid 'to' date format");
+
+        var rows = await context.Transactions
             .Where(t => t.Type == TransactionType.Expense)
-            .WhereIf(from is not null, t => t.Date >= from!.Value)
-            .WhereIf(to is not null, t => t.Date <= to!.Value)
-            .GroupBy(t => t.CategoryId)
+            .WhereIf(from is not null, t => t.Date >= fromDate!.Value)
+            .WhereIf(to is not null, t => t.Date <= toDate!.Value)
+            .GroupBy(t => new { t.CategoryId, t.Category.Name, t.Category.HexColor })
             .Select(g => new
             {
-                CategoryId = g.Key,
+                g.Key.CategoryId,
+                g.Key.Name,
+                g.Key.HexColor,
                 Total = g.Sum(t => t.AmountInPLN)
             })
+        .OrderByDescending(x => x.Total)
         .ToListAsync(ct);
 
-        var categoryIds = spending.Select(s => s.CategoryId).ToList();
-        var categories = await context.Categories
-            .Where(c => categoryIds.Contains(c.Id))
-            .ToDictionaryAsync(c => c.Id, c => new { c.Name, c.HexColor }, ct);
-
-        var result = spending
-            .Select(s => new CategorySpendingResponse(
-                s.CategoryId,
-                categories[s.CategoryId].Name,
-                categories[s.CategoryId].HexColor,
-                s.Total))
-            .OrderByDescending(x => x.Total)
-            .ToList();
+        var result = rows
+            .Select(r => new CategorySpendingResponse(r.CategoryId, r.Name, r.HexColor, r.Total))
+        .ToList();
 
         return Results.Ok(result);
     }

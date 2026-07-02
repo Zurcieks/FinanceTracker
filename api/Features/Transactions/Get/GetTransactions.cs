@@ -29,12 +29,18 @@ public static class GetTransactions
         AppDbContext context,
         CancellationToken ct,
         [FromQuery] Guid? categoryId,
-        [FromQuery] DateOnly? from,
-        [FromQuery] DateOnly? to,
+        [FromQuery] string? from,
+        [FromQuery] string? to,
         [FromQuery] string? search,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
     {
+
+
+        if (!DateParsing.TryParseOptional(from, out var fromDate))
+            return Results.BadRequest("Invalid 'from' date format");
+        if (!DateParsing.TryParseOptional(to, out var toDate))
+            return Results.BadRequest("Invalid 'to' date format");
 
         page = page < 1 ? 1 : page;
         pageSize = Math.Clamp(pageSize, 1, 100);
@@ -43,8 +49,8 @@ public static class GetTransactions
 
         query = query
             .WhereIf(categoryId is not null, t => t.CategoryId == categoryId)
-                .WhereIf(from is not null, t => t.Date >= from!.Value)
-                .WhereIf(to is not null, t => t.Date <= to!.Value)
+                .WhereIf(from is not null, t => t.Date >= fromDate!.Value)
+                .WhereIf(to is not null, t => t.Date <= toDate!.Value)
                 .WhereIf(!string.IsNullOrWhiteSpace(search), t =>
                 EF.Functions.ILike(t.MerchantName, $"%{search}%") ||
                 (t.Description != null && EF.Functions.ILike(t.Description, $"%{search}%")));

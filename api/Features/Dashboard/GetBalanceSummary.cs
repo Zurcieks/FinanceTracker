@@ -27,25 +27,30 @@ public static class GetBalanceSummary
     private static async Task<IResult> Handle(
         AppDbContext context,
         CancellationToken ct,
-        [FromQuery] DateOnly? from,
-        [FromQuery] DateOnly? to)
+        [FromQuery] string? from,
+        [FromQuery] string? to)
     {
+        if (!DateParsing.TryParseOptional(from, out var fromDate))
+            return Results.BadRequest("Invalid 'from' date format");
+        if (!DateParsing.TryParseOptional(to, out var toDate))
+            return Results.BadRequest("Invalid 'to' date format");
+
         var query = context.Transactions
-            .WhereIf(from is not null, t => t.Date >= from!.Value)
-            .WhereIf(to is not null, t => t.Date <= to!.Value);
+            .WhereIf(from is not null, t => t.Date >= fromDate!.Value)
+            .WhereIf(to is not null, t => t.Date <= toDate!.Value);
 
         var totalIncome = await query
             .Where(t => t.Type == TransactionType.Income)
             .SumAsync(t => t.AmountInPLN, ct);
 
-        var TotalExpense = await query
+        var totalExpense = await query
             .Where(t => t.Type == TransactionType.Expense)
             .SumAsync(t => t.AmountInPLN, ct);
 
         return Results.Ok(new BalanceSummaryResponse(
             totalIncome,
-            TotalExpense,
-            totalIncome - TotalExpense));
+            totalExpense,
+            totalIncome - totalExpense));
     }
 
 }

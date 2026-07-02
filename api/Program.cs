@@ -17,7 +17,6 @@ using Api.Features.Transactions.GetById;
 using Api.Features.Transactions.Update;
 using Api.Infrastructure;
 using Api.Infrastructure.Seeding;
-using APi.Features.Dashboard;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Scalar.AspNetCore;

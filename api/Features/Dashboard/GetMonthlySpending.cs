@@ -4,14 +4,14 @@ using Api.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-namespace APi.Features.Dashboard;
+namespace Api.Features.Dashboard;
 
 public record MonthlySpendingResponse(
     int Year,
     int Month,
     decimal Total);
 
-public static class MonthlySpending
+public static class GetMonthlySpending
 {
     public static IEndpointRouteBuilder MapGetMonthlySpending(this IEndpointRouteBuilder app)
     {
@@ -25,24 +25,31 @@ public static class MonthlySpending
     private static async Task<IResult> Handle(
         AppDbContext context,
         CancellationToken ct,
-        [FromQuery] DateOnly? from,
-        [FromQuery] DateOnly? to)
+        [FromQuery] string? from,
+        [FromQuery] string? to)
     {
+        if (!DateParsing.TryParseOptional(from, out var fromDate))
+            return Results.BadRequest("Invalid 'from' date format");
+        if (!DateParsing.TryParseOptional(to, out var toDate))
+            return Results.BadRequest("Invalid 'to' date format");
+
         var rows = await context.Transactions
             .Where(t => t.Type == TransactionType.Expense)
-            .WhereIf(from is not null, t => t.Date >= from!.Value)
-            .WhereIf(to is not null, t => t.Date <= from!.Value)
-            .Select(t => new { t.Date, t.AmountInPLN })
+            .WhereIf(from is not null, t => t.Date >= fromDate!.Value)
+            .WhereIf(to is not null, t => t.Date <= toDate!.Value)
+            .GroupBy(t => new { t.Date.Year, t.Date.Month })
+            .Select(g => new
+            {
+                g.Key.Year,
+                g.Key.Month,
+                Total = g.Sum(t => t.AmountInPLN)
+            })
+            .OrderBy(x => x.Year).ThenBy(x => x.Month)
             .ToListAsync(ct);
 
         var result = rows
-            .GroupBy(r => new { r.Date.Year, r.Date.Month })
-            .Select(g => new MonthlySpendingResponse(
-                g.Key.Year,
-                g.Key.Month,
-                g.Sum(r => r.AmountInPLN)))
-            .OrderBy(x => x.Year).ThenBy(x => x.Month)
-            .ToList();
+            .Select(r => new MonthlySpendingResponse(r.Year, r.Month, r.Total)) // EF cant translate agreggate in constructor
+        .ToList();
 
         return Results.Ok(result);
     }
