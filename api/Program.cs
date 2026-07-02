@@ -65,6 +65,8 @@ builder.Services.AddSingleton<ReceiptScanner>();
 
 builder.Services.AddScoped<CurrencyConverter>();
 
+builder.Services.AddHostedService<ReceiptCleaner>();
+
 
 
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -113,6 +115,12 @@ app.MapScanReceiptEndpoint();
 app.MapGetBalanceSummary();
 app.MapGetCategorySpending();
 app.MapGetMonthlySpending();
+
+app.MapGet("/api/debug/receipts", async (ReceiptStorage storage, CancellationToken ct) =>
+{
+    var files = await storage.ListAsync(ct);
+    return Results.Ok(files.Select(f => new { f.Key, f.LastModified }));
+});
 
 
 

@@ -18,7 +18,6 @@ public class ReceiptStorage(IAmazonS3 s3, IConfiguration config)
             _ => "bin"
         };
 
-
         var key = $"{Guid.NewGuid()}.{extension}";
 
         await s3.PutObjectAsync(new PutObjectRequest
@@ -56,5 +55,29 @@ public class ReceiptStorage(IAmazonS3 s3, IConfiguration config)
     public async Task DeleteAsync(string key, CancellationToken ct)
     {
         await s3.DeleteObjectAsync(_bucket, key, ct);
+    }
+
+    public async Task<IReadOnlyList<(string Key, DateTime LastModified)>> ListAsync(CancellationToken ct)
+    {
+        var results = new List<(string Key, DateTime LastModified)>();
+        string? continuationToken = null;
+
+        do
+        {
+            var response = await s3.ListObjectsV2Async(new ListObjectsV2Request
+            {
+                BucketName = _bucket,
+                ContinuationToken = continuationToken
+            }, ct);
+
+            foreach (var obj in response.S3Objects ?? [])
+            {
+                results.Add((obj.Key, obj.LastModified ?? DateTime.UtcNow));
+            }
+            continuationToken = response.IsTruncated == true ? response.NextContinuationToken : null;
+        }
+        while (continuationToken is not null);
+
+        return results;
     }
 }

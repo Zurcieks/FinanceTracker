@@ -2,6 +2,7 @@ using Api.Common;
 using Api.Domain;
 using Api.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Api.Features.Transactions.Update;
 
@@ -37,6 +38,7 @@ public record UpdateTransactionResponse(
 
 public static class UpdateTransaction
 {
+
     public static IEndpointRouteBuilder MapUpdateTransactionEndpoint(this IEndpointRouteBuilder app)
     {
         app.MapPatch("/api/transactions/{id}", Handle)
@@ -47,7 +49,14 @@ public static class UpdateTransaction
         return app;
     }
 
-    private static async Task<IResult> Handle(Guid id, UpdateTransactionRequest request, AppDbContext context, CurrencyConverter converter, ReceiptStorage storage, CancellationToken ct)
+    private static async Task<IResult> Handle(
+        Guid id,
+        UpdateTransactionRequest request,
+        AppDbContext context, CurrencyConverter
+        converter,
+        ReceiptStorage storage,
+        ILogger<UpdateTransactionRequest> logger,
+        CancellationToken ct)
     {
         var transaction = await context.Transactions.FindAsync([id], ct);
         if (transaction is null)
@@ -65,18 +74,24 @@ public static class UpdateTransaction
         if (amountInPLN is null)
             return Results.Problem("Failed to fetch euro rate from NBP", statusCode: 502);
 
+        if (request.ReceiptKey is not null
+            && request.ReceiptKey != transaction.ReceiptKey
+            && !await storage.ExistsAsync(request.ReceiptKey, ct))
+        {
+            return Results.BadRequest("Receipt not found.");
+        }
+
+        string? keyToDelete = null;
+
         if (request.ReceiptKey is not null && request.ReceiptKey != transaction.ReceiptKey)
         {
-            var oldKey = transaction.ReceiptKey;
+            keyToDelete = transaction.ReceiptKey;
             transaction.ReceiptKey = request.ReceiptKey;
-            if (oldKey is not null)
-                await storage.DeleteAsync(oldKey, ct);
         }
         else if (request.RemoveReceipt && transaction.ReceiptKey is not null)
         {
-            var oldKey = transaction.ReceiptKey;
+            keyToDelete = transaction.ReceiptKey;
             transaction.ReceiptKey = null;
-            await storage.DeleteAsync(oldKey, ct);
         }
 
         var warsaw = TimeZoneInfo.FindSystemTimeZoneById("Europe/Warsaw");
@@ -95,7 +110,22 @@ public static class UpdateTransaction
 
         await context.SaveChangesAsync(ct);
 
+
+        if (keyToDelete is not null)
+        {
+            try
+            {
+                await storage.DeleteAsync(keyToDelete, ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex,
+                "Failed to delete old receipt after updating transaction {TransactionId}. Orphaned file left in storage.",
+                transaction.Id);
+            }
+        }
         return Results.Ok(UpdateTransactionResponse.FromEntity(transaction));
+
 
     }
 
