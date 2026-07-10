@@ -72,6 +72,19 @@ public class CategoriesTests(TestWebAppFactory factory) : IClassFixture<TestWebA
     }
 
     [Fact]
+    public async Task CreateCategory_Concurrent_SameName_NeverReturnsServerError()
+    {
+        var name = $"race-{Guid.NewGuid()}";
+        var request = new { name, hexColor = "#FF5733", icon = "tag.fill" };
+
+        var tasks = Enumerable.Range(0, 8).Select(_ => _client.PostAsJsonAsync("/api/categories", request));
+        var results = await Task.WhenAll(tasks);
+
+        Assert.All(results, r => Assert.True(r.StatusCode is HttpStatusCode.Created or HttpStatusCode.Conflict));
+        Assert.Equal(1, results.Count(r => r.StatusCode == HttpStatusCode.Created));
+    }
+
+    [Fact]
     public async Task ArchiveCategory_RemovesFromList_WhenArchived()
     {
         var name = $"test-{Guid.NewGuid()}";

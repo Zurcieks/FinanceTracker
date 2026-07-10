@@ -2,6 +2,7 @@ using Api.Common;
 using Api.Domain;
 using Api.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Api.Features.Categories.Create;
 
@@ -27,7 +28,10 @@ public static class CreateCategory
     private static async Task<IResult> Handle(CreateCategoryRequest request, AppDbContext context, CancellationToken ct)
     {
 
-        var exists = await context.Categories.AnyAsync(c => c.Name.ToLower() == request.Name.ToLower(), ct);
+        var name = request.Name.Trim();
+
+        var exists = await context.Categories
+            .AnyAsync(c => c.Name.ToLower() == name.ToLower(), ct);
 
         if (exists)
             return Results.Conflict("Category with this name already exists");
@@ -35,7 +39,7 @@ public static class CreateCategory
         var category = new Category
         {
             Id = Guid.NewGuid(),
-            Name = request.Name,
+            Name = name,
             HexColor = request.HexColor,
             Icon = request.Icon,
             IsDefault = false,
@@ -43,7 +47,15 @@ public static class CreateCategory
         };
 
         context.Categories.Add(category);
-        await context.SaveChangesAsync(ct);
+
+        try
+        {
+            await context.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            return Results.Conflict("Category with this name already exists");
+        }
 
         return Results.Created($"/api/categories/{category.Id}", CreateCategoryResponse.FromEntity(category));
     }

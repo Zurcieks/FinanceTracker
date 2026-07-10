@@ -2,6 +2,7 @@ using Api.Common;
 using Api.Domain;
 using Api.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace Api.Features.Categories.Update;
 
@@ -49,13 +50,16 @@ public static class UpdateCategory
         category.HexColor = request.HexColor;
         category.Icon = request.Icon;
 
-        await context.SaveChangesAsync(ct);
+        try
+        {
+            await context.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            return Results.Conflict("Category with this name already exists");
+        }
 
         return Results.Ok(UpdateCategoryResponse.FromEntity(category));
-
-
-
-
     }
 
 }
