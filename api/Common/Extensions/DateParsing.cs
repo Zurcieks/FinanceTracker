@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Api.Common.Extensions;
 
 public static class DateParsing
@@ -6,7 +8,8 @@ public static class DateParsing
     {
         result = null;
         if (string.IsNullOrWhiteSpace(input)) return true;
-        if (!DateOnly.TryParse(input, out var parsed)) return false; // bad format
+        if (!DateOnly.TryParseExact(input, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+            return false; // bad format
         result = parsed;
         return true;
     }
