@@ -13,6 +13,7 @@ public class CreateTransactionValidator : AbstractValidator<CreateTransactionReq
             .MaximumLength(200).WithMessage("Description cannot be longer than 200 characters");
         RuleFor(x => x.Amount)
             .NotEmpty().WithMessage("Amount is required")
+            .Must(amount => amount == decimal.Round(amount, 2)).WithMessage("Amount can have at most 2 decimal places")
             .GreaterThan(0).WithMessage("Amount must be greater than 0");
         RuleFor(x => x.Currency)
             .IsInEnum().WithMessage("Invalid currency");

@@ -59,4 +59,31 @@ public class CreateTransactionValidatorTests
 
         result.ShouldHaveValidationErrorFor(x => x.CategoryId);
     }
+
+    [Theory]
+    [InlineData(24.999)]
+    [InlineData(0.001)]
+    [InlineData(100.12345)]
+    public void Should_HaveError_When_AmountHasMoreThanTwoDecimals(decimal amount)
+    {
+        var request = ValidRequest() with { Amount = amount };
+
+        var result = _validator.TestValidate(request);
+
+        result.ShouldHaveValidationErrorFor(x => x.Amount);
+    }
+
+    [Theory]
+    [InlineData(24.99)]
+    [InlineData(25)]
+    [InlineData(0.01)]
+    public void Should_NotHaveError_When_AmountHasTwoOrFewerDecimals(decimal amount)
+    {
+        var request = ValidRequest() with { Amount = amount };
+
+        var result = _validator.TestValidate(request);
+
+        result.ShouldNotHaveAnyValidationErrors();
+
+    }
 }

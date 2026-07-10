@@ -17,7 +17,7 @@ public class CurrencyConverter(NbpClient nbpClient)
             rate = euroRate.Value;
         }
 
-        return Math.Round(amount * rate, 2);
+        return Math.Round(amount * rate, 2, MidpointRounding.AwayFromZero);
     }
 
 }
