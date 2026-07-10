@@ -162,6 +162,79 @@ public class TransactionTests(TestWebAppFactory factory) : IClassFixture<TestWeb
         Assert.Equal(HttpStatusCode.NotFound, getAfterDelete.StatusCode);
     }
 
+    [Fact]
+    public async Task UpdateTransaction_ReplacingReceipt_DeletesOldFileFromStorage()
+    {
+        var categoryId = await CreateCategoryAsync();
+        var oldKey = await UploadReceiptAsync();
+
+        var create = await PostTransactionAsync(categoryId, "Żabka", 100m);
+        var created = await create.Content.ReadFromJsonAsync<TransactionDto>();
+
+        var attach = await _client.PatchAsJsonAsync($"/api/transactions/{created!.Id}", new
+        {
+            MerchantName = "Żabka",
+            Amount = 100m,
+            Currency = "PLN",
+            Type = "Expense",
+            CategoryId = categoryId,
+            ReceiptKey = oldKey
+        });
+        Assert.Equal(HttpStatusCode.OK, attach.StatusCode);
+
+        var newKey = await UploadReceiptAsync();
+
+        var swap = await _client.PatchAsJsonAsync($"/api/transactions/{created.Id}", new
+        {
+            MerchantName = "Żabka",
+            Amount = 100m,
+            Currency = "PLN",
+            Type = "Expense",
+            CategoryId = categoryId,
+            ReceiptKey = newKey
+        });
+        Assert.Equal(HttpStatusCode.OK, swap.StatusCode);
+
+        Assert.False(await ReceiptExistsAsync(oldKey));
+        Assert.True(await ReceiptExistsAsync(newKey));
+    }
+
+    [Fact]
+    public async Task UpdateTransaction_WithRemoveReceipt_ClearsKeyAndDeletesFile()
+    {
+        var categoryId = await CreateCategoryAsync();
+        var key = await UploadReceiptAsync();
+
+        var create = await PostTransactionAsync(categoryId, "Żabka", 100m);
+        var created = await create.Content.ReadFromJsonAsync<TransactionDto>();
+
+        var attach = await _client.PatchAsJsonAsync($"/api/transactions/{created!.Id}", new
+        {
+            MerchantName = "Żabka",
+            Amount = 100m,
+            Currency = "PLN",
+            Type = "Expense",
+            CategoryId = categoryId,
+            ReceiptKey = key
+        });
+        Assert.Equal(HttpStatusCode.OK, attach.StatusCode);
+
+        var remove = await _client.PatchAsJsonAsync($"/api/transactions/{created.Id}", new
+        {
+            MerchantName = "Żabka",
+            Amount = 100m,
+            Currency = "PLN",
+            Type = "Expense",
+            CategoryId = categoryId,
+            ReceiptKey = (string?)null,
+            RemoveReceipt = true
+        });
+        var removed = await remove.Content.ReadFromJsonAsync<TransactionDto>();
+
+        Assert.Null(removed!.ReceiptKey);
+        Assert.False(await ReceiptExistsAsync(key));
+    }
+
     private record DebugFileDto(string Key, DateTime LastModified);
 
     private record TransactionDto(
