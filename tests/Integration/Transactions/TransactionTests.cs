@@ -99,6 +99,22 @@ public class TransactionTests(TestWebAppFactory factory) : IClassFixture<TestWeb
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
+    [Fact]
+    public async Task GetTransactions_DoesNotFail_WhenDateParamsAreEmpty()
+    {
+        var response = await _client.GetAsync("/api/transactions?from=&to=");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetTransactions_ReturnsBadRequest_WhenDateFormatIsInvalid()
+    {
+        var response = await _client.GetAsync("/api/transactions?from=not-a-date");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
     private record TransactionDto(
         Guid Id,
         string MerchantName,

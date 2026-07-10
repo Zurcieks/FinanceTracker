@@ -36,8 +36,8 @@ public static class GetBalanceSummary
             return Results.BadRequest("Invalid 'to' date format");
 
         var query = context.Transactions
-            .WhereIf(from is not null, t => t.Date >= fromDate!.Value)
-            .WhereIf(to is not null, t => t.Date <= toDate!.Value);
+            .WhereIf(fromDate is not null, t => t.Date >= fromDate!.Value)
+            .WhereIf(toDate is not null, t => t.Date <= toDate!.Value);
 
         var totalIncome = await query
             .Where(t => t.Type == TransactionType.Income)

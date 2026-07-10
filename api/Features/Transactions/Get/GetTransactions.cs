@@ -49,8 +49,8 @@ public static class GetTransactions
 
         query = query
             .WhereIf(categoryId is not null, t => t.CategoryId == categoryId)
-                .WhereIf(from is not null, t => t.Date >= fromDate!.Value)
-                .WhereIf(to is not null, t => t.Date <= toDate!.Value)
+                .WhereIf(fromDate is not null, t => t.Date >= fromDate!.Value)
+                .WhereIf(toDate is not null, t => t.Date <= toDate!.Value)
                 .WhereIf(!string.IsNullOrWhiteSpace(search), t =>
                 EF.Functions.ILike(t.MerchantName, $"%{search}%") ||
                 (t.Description != null && EF.Functions.ILike(t.Description, $"%{search}%")));

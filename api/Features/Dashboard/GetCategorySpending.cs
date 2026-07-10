@@ -36,8 +36,8 @@ public static class GetCategorySpending
 
         var rows = await context.Transactions
             .Where(t => t.Type == TransactionType.Expense)
-            .WhereIf(from is not null, t => t.Date >= fromDate!.Value)
-            .WhereIf(to is not null, t => t.Date <= toDate!.Value)
+            .WhereIf(fromDate is not null, t => t.Date >= fromDate!.Value)
+            .WhereIf(toDate is not null, t => t.Date <= toDate!.Value)
             .GroupBy(t => new { t.CategoryId, t.Category.Name, t.Category.HexColor })
             .Select(g => new
             {
