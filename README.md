@@ -1,72 +1,98 @@
-# Finance Tracker
+# Finance Tracker API
 
-A personal finance tracker I built to manage my own spending. The backend is a
-.NET Minimal API; the client is a native iOS app written in Swift. The interesting
-part isn't the CRUD — it's the receipt scanning: snap a photo of a receipt and a
-vision model pulls out the merchant, amount, date and category into a draft you
-confirm before saving.
+Backend API for a personal finance tracking application. The project exposes a
+.NET Minimal API for managing categories, transactions, dashboard summaries,
+currency conversion and AI-assisted receipt scanning.
 
-## What it does
+The current scope is a single-user backend, so authentication is not
+included by design.
 
-- **Categories** with full CRUD, archived instead of hard-deleted so transaction
-  history stays intact
-- **Transactions** with filtering, search and pagination
-- **Currency conversion** via the Polish National Bank (NBP) API.
-- **Receipt scanning** — an OpenAI vision model extracts data from a photo into a
-  draft; the user reviews and confirms before anything is written
-- **Receipt storage** in object storage (S3 / MinIO), with short-lived presigned
-  URLs generated on read
+## Features
 
-## Stack
+- **Categories** with create, read, update, archive and restore operations
+- **Transactions** with filtering, search, pagination and receipt attachment
+- **Dashboard summaries** for balance, category spending and monthly spending
+- **Currency conversion** using the Polish National Bank (NBP) API
+- **Receipt scanning** using an OpenAI vision model
+- **Receipt storage** using S3-compatible object storage, tested locally with MinIO
+- **Short-lived presigned URLs** for receipt access
+- **Validation pipeline** using FluentValidation endpoint filters
+- **Integration tests** running against a real PostgreSQL database with Testcontainers
 
-.NET 10 · Minimal API · EF Core · PostgreSQL · Docker · OpenAI API
+## Tech Stack
+
+- .NET 10
+- ASP.NET Core Minimal API
+- Entity Framework Core
+- PostgreSQL
+- Docker Compose
+- Testcontainers
+- FluentValidation
+- Serilog
+- OpenAI API
+- Amazon S3 SDK / MinIO
+- Scalar API Reference
 
 ## Architecture
 
-The project uses **Vertical Slice Architecture** — each feature lives in its own
-folder with everything it needs (endpoint, request/response, validator) right next
-to it, instead of being spread across horizontal `Services` / `Repositories` layers.
-When I work on a feature, everything about it is in one place.
+The API follows **Vertical Slice Architecture**. Each feature keeps its endpoint,
+request/response models and validation close together instead of spreading logic
+across broad horizontal layers.
 
-**Why no CQRS / MediatR?** At this scale a mediator pipeline is overhead without a
-payoff — it adds indirection I'd have to justify, not remove. Validation runs through
-FluentValidation wired in as an endpoint filter, which keeps it out of the handlers.
-
-**Why no authentication?** It's a single-user app — there's no concept of a user, so
-there's nothing to authorize. I'd rather leave it out cleanly than bolt on auth that
-guards nothing.
-
-## Running it locally
-
-```bash
-docker compose up -d                                  # PostgreSQL, PgAdmin + MinIO
-dotnet user-secrets set "OpenAI:ApiKey" "your-key"    # receipt scanning
-dotnet run --project api
+```text
+api/
+  Features/
+    Categories/
+    Transactions/
+    Dashboard/
+    Receipts/
+    ExchangeRates/
+  Infrastructure/
+  Domain/
+  Common/
 ```
 
-Then open the Scalar API UI at http://localhost:5204/scalar.
+This keeps the project easy to navigate and makes feature changes local to a
+single area of the codebase.
 
-## Decisions worth explaining
+The project intentionally does not use CQRS or MediatR. For this size of API, a
+mediator pipeline would add indirection without solving a real problem. The code
+keeps handlers explicit and validation is handled through endpoint filters.
 
-**Exchange rate is a snapshot, not a live lookup.** When a transaction is saved, its
-PLN value is computed once and stored. Reads never call NBP again. A purchase made
-last month shouldn't change its recorded value just because today's rate moved —
-the historical amount stays fixed.
+## API Areas
 
-**The AI is treated as an untrusted source.** A model can return well-formed JSON
-with nonsense inside it — a currency that doesn't exist, a hallucinated category ID.
-So its output is validated before use: enums are parsed safely (anything unrecognized
-becomes null), and a suggested category is checked against the actual database before
-it's accepted. The draft goes to the user to confirm regardless.
+### Categories
 
-**Categories are archived, not deleted.** Hard-deleting a category would orphan every
-transaction that referenced it. Archiving hides it from the active list while keeping
-the history coherent.
+Categories can be created, updated, archived and restored. They are archived
+instead of hard-deleted so historical transactions remain consistent.
 
-## Tests
+### Transactions
 
-Unit tests cover the validators and the enum-parsing logic. Integration tests run
-against a real PostgreSQL instance spun up in Docker via Testcontainers (not the EF
-in-memory provider — that doesn't enforce unique indexes or foreign keys, so it would
-pass tests that should fail). They exercise full request → database → response paths,
-including cases like duplicate-name conflicts that only surface against a real database.
+Transactions support filtering, search and pagination. When a transaction is
+saved, its PLN value is calculated once and stored as a snapshot.
+
+### Dashboard
+
+The dashboard endpoints expose aggregated financial data, including balance
+summary, category spending and monthly spending.
+
+### Exchange Rates
+
+Currency conversion uses the NBP API. Exchange rates are used when a transaction
+is saved, not on every read, so historical transaction values do not change when
+current rates move.
+
+### Receipts
+
+Receipts are stored in S3-compatible object storage. The API stores object keys in
+the database and generates short-lived presigned URLs when receipts are requested.
+
+### AI Receipt Scanning
+
+Receipt scanning uses an OpenAI vision model to extract a draft from a receipt
+image. The API treats model output as a suggestion, not as trusted business data.
+
+The scanning flow validates the uploaded file, asks the model for structured JSON,
+safely parses supported enum values and accepts suggested category IDs only when
+they match active categories from the database. The result is returned as a draft
+for user confirmation.
